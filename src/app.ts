@@ -11,6 +11,10 @@ const prisma = new PrismaClient();
 app.use(cors());
 app.use(express.json());
 
+app.get("/", (req, res) => {
+  res.json({ message: "Backend is live 🚀" });
+});
+
 // Register
 app.post("/register", async (req: Request, res: Response) => {
   try {

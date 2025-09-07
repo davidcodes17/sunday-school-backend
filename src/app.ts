@@ -87,6 +87,17 @@ app.post("/login", async (req: Request, res: Response) => {
 //   res.json(users);
 // });
 
+interface Attendance {
+  id: number;
+  user: {
+    name: string;
+    email: string;
+    phone: string;
+    department: string;
+  };
+  date: Date;
+}
+
 app.get("/export-attendance", async (req: Request, res: Response) => {
   try {
     const { format } = req.query; // ?format=csv or ?format=pdf
@@ -104,7 +115,7 @@ app.get("/export-attendance", async (req: Request, res: Response) => {
     }
 
     // Transform data
-    const data = attendances.map((a, index) => ({
+    const data = attendances.map((a: Attendance, index) => ({
       sn: index + 1, // 👈 auto-increment per row
       name: a.user.name,
       email: a.user.email,
@@ -162,8 +173,6 @@ app.get("/export-attendance", async (req: Request, res: Response) => {
     res.status(500).json({ error: "Something went wrong" });
   }
 });
-
-
 
 // const PORT = 4000;
 // app.listen(PORT, () => {

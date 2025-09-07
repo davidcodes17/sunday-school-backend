@@ -7,7 +7,7 @@
     "dev": "node --loader ts-node/esm src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "prisma": "prisma"
+    "postinstall": "prisma generate --binary-target native --binary-target=debian-openssl-1.1.x"
   },
   "keywords": [],
   "author": "",

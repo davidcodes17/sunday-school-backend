@@ -11,8 +11,9 @@ const prisma = new PrismaClient();
 app.use(cors());
 app.use(express.json());
 
-app.get("/", (req, res) => {
-  res.json({ message: "Backend is live 🚀" });
+// Health Check
+app.get("/", (_req, res) => {
+  res.json({ message: "Welcome! The backend is running smoothly 🚀" });
 });
 
 // Register
@@ -21,12 +22,16 @@ app.post("/register", async (req: Request, res: Response) => {
     const { name, email, phone, department, pin } = req.body;
 
     if (!name || !email || !phone || !department || !pin) {
-      return res.status(400).json({ error: "All fields are required" });
+      return res
+        .status(400)
+        .json({ error: "Please fill in all required fields to continue." });
     }
 
     const existing = await prisma.user.findUnique({ where: { email } });
     if (existing) {
-      return res.status(400).json({ error: "Email already registered" });
+      return res
+        .status(400)
+        .json({ error: "This email is already registered. Try logging in." });
     }
 
     const hashedPin = await bcrypt.hash(pin, 10);
@@ -36,12 +41,14 @@ app.post("/register", async (req: Request, res: Response) => {
     });
 
     res.json({
-      message: "User registered successfully",
+      message: `Welcome aboard, ${name}! Your account has been created successfully.`,
       user: { id: user.id, email: user.email },
     });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Something went wrong" });
+    res
+      .status(500)
+      .json({ error: "Oops! Something went wrong on our side. Please try again later." });
   }
 });
 
@@ -49,14 +56,24 @@ app.post("/register", async (req: Request, res: Response) => {
 app.post("/login", async (req: Request, res: Response) => {
   try {
     const { email, pin } = req.body;
-    if (!email || !pin)
-      return res.status(400).json({ error: "Email and PIN required" });
+
+    if (!email || !pin) {
+      return res
+        .status(400)
+        .json({ error: "Both email and PIN are required to log in." });
+    }
 
     const user = await prisma.user.findUnique({ where: { email } });
-    if (!user) return res.status(404).json({ error: "User not found" });
+    if (!user) {
+      return res
+        .status(404)
+        .json({ error: "We couldn't find an account with that email." });
+    }
 
     const validPin = await bcrypt.compare(pin, user.pin);
-    if (!validPin) return res.status(401).json({ error: "Invalid PIN" });
+    if (!validPin) {
+      return res.status(401).json({ error: "Incorrect PIN. Please try again." });
+    }
 
     // Mark attendance (only once per day)
     const today = new Date();
@@ -67,26 +84,21 @@ app.post("/login", async (req: Request, res: Response) => {
     });
 
     if (existingAttendance) {
-      return res.json({ message: "Attendance already marked today ✅" });
+      return res.json({ message: "You've already marked your attendance today. ✅" });
     }
 
-    await prisma.attendance.create({
-      data: { userId: user.id },
-    });
+    await prisma.attendance.create({ data: { userId: user.id } });
 
-    res.json({ message: "Attendance marked successfully ✅" });
+    res.json({ message: "Attendance successfully marked. Have a great day! ✅" });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Something went wrong" });
+    res
+      .status(500)
+      .json({ error: "Something went wrong while marking your attendance. Please try again." });
   }
 });
 
-// Get all users (for admin)
-// app.get("/users", async (_req, res) => {
-//   const users = await prisma.user.findMany({ include: { attendances: true } });
-//   res.json(users);
-// });
-
+// Export Attendance
 interface Attendance {
   id: number;
   user: {
@@ -104,19 +116,19 @@ app.get("/export-attendance", async (req: Request, res: Response) => {
     const today = new Date();
     const startOfDay = new Date(today.setHours(0, 0, 0, 0));
 
-    // Fetch today’s attendance with user info
     const attendances = await prisma.attendance.findMany({
       where: { date: { gte: startOfDay } },
       include: { user: true },
     });
 
     if (!attendances.length) {
-      return res.status(404).json({ error: "No attendance found for today" });
+      return res
+        .status(404)
+        .json({ error: "No attendance has been recorded for today yet." });
     }
 
-    // Transform data
     const data = attendances.map((a: Attendance, index) => ({
-      sn: index + 1, // 👈 auto-increment per row
+      sn: index + 1,
       name: a.user.name,
       email: a.user.email,
       phone: a.user.phone + "",
@@ -126,11 +138,10 @@ app.get("/export-attendance", async (req: Request, res: Response) => {
         hour: "2-digit",
         minute: "2-digit",
         second: "2-digit",
-        hour12: true, // 👈 adds AM/PM
+        hour12: true,
       }),
     }));
 
-    // CSV Export
     if (format === "csv") {
       const parser = new Json2CsvParser({ fields: Object.keys(data[0]) });
       const csv = parser.parse(data);
@@ -139,7 +150,6 @@ app.get("/export-attendance", async (req: Request, res: Response) => {
       return res.send(csv);
     }
 
-    // PDF Export
     if (format === "pdf") {
       res.header("Content-Type", "application/pdf");
       res.attachment(`attendance-${today.toISOString().split("T")[0]}.pdf`);
@@ -154,9 +164,7 @@ app.get("/export-attendance", async (req: Request, res: Response) => {
         doc
           .fontSize(12)
           .text(
-            `${i + 1}. ${item.name} | ${item.email} | ${item.phone} | ${
-              item.department
-            } | ${item.date} ${item.time}`
+            `${i + 1}. ${item.name} | ${item.email} | ${item.phone} | ${item.department} | ${item.date} ${item.time}`
           );
       });
 
@@ -164,13 +172,14 @@ app.get("/export-attendance", async (req: Request, res: Response) => {
       return;
     }
 
-    // Default fallback
-    return res
-      .status(400)
-      .json({ error: "Invalid format. Use ?format=csv or ?format=pdf" });
+    return res.status(400).json({
+      error: "Invalid export format. Please use ?format=csv or ?format=pdf",
+    });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Something went wrong" });
+    res
+      .status(500)
+      .json({ error: "We encountered an error while exporting attendance. Please try again." });
   }
 });
 
@@ -178,4 +187,3 @@ const PORT = 4000;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
 });
-
